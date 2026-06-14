@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block title %}Configurations{% endblock %}
+
+{% block extra_style %}
+<style>
+  .modal-backdrop {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.6);
+    z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    width: 480px;
+    max-width: 95vw;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .modal-title {
+    font-size: 15px; font-weight: 600;
+    color: var(--text-hi); margin-bottom: 18px;
+  }
+  .form-row { margin-bottom: 14px; }
+  label {
+    display: block;
+    font-size: 11px; font-family: var(--mono);
+    letter-spacing: .05em; text-transform: uppercase;
+    color: var(--text-dim); margin-bottom: 5px;
+  }
+  input, select {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-hi);
+    font-family: var(--mono); font-size: 13px;
+    padding: 8px 10px; outline: none;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  .form-row-inline { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .url-checkboxes {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-top: 6px;
+  }
+  .url-check-label {
+    display: flex; align-items: center; gap: 5px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 9px;
+    font-family: var(--mono); font-size: 12px;
+    cursor: pointer; color: var(--text);
+    transition: border-color .15s;
+    text-transform: none; letter-spacing: 0;
+  }
+  .url-check-label:has(input:checked) {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(59,130,246,.08);
+  }
+  .url-check-label input { display: none; }
+  .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Configurations</div>
+    <div class="page-sub">règles firewall par salle et plage horaire</div>
+  </div>
+  <button class="btn btn-primary" id="btn-new">+ Nouvelle config</button>
+</div>
+
+<div class="table-wrap">
+  <div class="table-toolbar">
+    <div class="table-toolbar-title">Toutes les configurations</div>
+    <select class="filter-select" id="filter-statut">
+      <option value="">tous les statuts</option>
+      <option value="active">active</option>
+      <option value="pending">pending</option>
+      <option value="failed">failed</option>
+    </select>
+  </div>
+  <div id="configs-wrap">
+    <div class="loading">chargement</div>
+  </div>
+</div>
+
+<!-- Modal nouvelle configuration -->
+<div class="modal-backdrop" id="modal-new">
+  <div class="modal">
+    <div class="modal-title">Nouvelle configuration</div>
+    <div class="form-row">
+      <label>Salle</label>
+      <select id="f-salle"></select>
+    </div>
+    <div class="form-row">
+      <label>Enseignant (id utilisateur)</label>
+      <input type="number" id="f-user" placeholder="ex : 1" min="1">
+    </div>
+    <div class="form-row">
+      <label>Date d'activation</label>
+      <input type="date" id="f-date">
+    </div>
+    <div class="form-row form-row-inline">
+      <div>
+        <label>Heure début</label>
+        <input type="time" id="f-debut">
+      </div>
+      <div>
+        <label>Heure fin</label>
+        <input type="time" id="f-fin">
+      </div>
+    </div>
+    <div class="form-row">
+      <label>URLs autorisées</label>
+      <div class="url-checkboxes" id="url-checkboxes">
+        <span style="color:var(--text-dim);font-size:12px">chargement…</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="btn-cancel">Annuler</button>
+      <button class="btn btn-primary" id="btn-submit">Créer</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+let _salles = [], _urls = [];
+
+/* ── chargement ── */
+async function loadPageData() {
+  const statut = document.getElementById('filter-statut').value;
+  const path   = statut ? `/api/configs?statut=${statut}` : '/api/configs';
+  const configs = await API.get(path);
+  renderTable(configs);
+}
+
+function renderTable(configs) {
+  const wrap = document.getElementById('configs-wrap');
+  if (!configs.length) {
+    wrap.innerHTML = '<div class="empty">aucune configuration</div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>#</th><th>Salle</th><th>Date</th><th>Horaire</th>
+        <th>Statut</th><th>URLs</th><th>FW</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
+        ${configs.map(c => {
+          const salle = _salles.find(s => s.id_salle === c.id_salle);
+          return `<tr id="row-${c.id_config}">
+            <td class="mono">${c.id_config}</td>
+            <td>${salle ? salle.nom : c.id_salle}</td>
+            <td class="mono">${c.date_config}</td>
+            <td class="mono">${c.heure_debut}–${c.heure_fin}</td>
+            <td>${badge(c.statut)}</td>
+            <td>${urlPills(c.urls)}</td>
+            <td class="mono" style="font-size:11px;color:var(--text-dim)">${c.fw_response || '—'}</td>
+            <td>${renderActions(c)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+
+  /* boutons actions */
+  document.querySelectorAll('[data-activate]').forEach(btn =>
+    btn.addEventListener('click', () => activateConfig(+btn.dataset.activate)));
+  document.querySelectorAll('[data-delete]').forEach(btn =>
+    btn.addEventListener('click', () => deleteConfig(+btn.dataset.delete)));
+}
+
+function renderActions(c) {
+  const btns = [];
+  if (c.statut === 'pending' || c.statut === 'failed') {
+    btns.push(`<button class="btn btn-ok btn-sm" data-activate="${c.id_config}">Activer</button>`);
+  }
+  if (c.statut !== 'active') {
+    btns.push(`<button class="btn btn-danger btn-sm" data-delete="${c.id_config}">Suppr.</button>`);
+  }
+  return btns.join(' ') || '<span style="color:var(--text-dim);font-size:11px">—</span>';
+}
+
+async function activateConfig(id) {
+  try {
+    await API.post(`/api/configs/${id}/activate`, {});
+    toast(`Config ${id} activée`, 'ok');
+    loadPageData();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function deleteConfig(id) {
+  if (!confirm(`Supprimer la configuration #${id} ?`)) return;
+  try {
+    await API.del(`/api/configs/${id}`);
+    toast(`Config ${id} supprimée`, 'ok');
+    loadPageData();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+/* ── modal nouvelle config ── */
+async function openModal() {
+  /* pré-remplir salle select */
+  const sel = document.getElementById('f-salle');
+  sel.innerHTML = _salles.map(s =>
+    `<option value="${s.id_salle}">${s.nom} (VLAN ${s.id_vlan})</option>`
+  ).join('');
+
+  /* checkboxes URLs */
+  const box = document.getElementById('url-checkboxes');
+  box.innerHTML = _urls.map(u => `
+    <label class="url-check-label">
+      <input type="checkbox" value="${u.id_url}">
+      ${u.lien}
+    </label>`).join('');
+
+  /* date par défaut = aujourd'hui */
+  document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
+
+  document.getElementById('modal-new').classList.add('open');
+}
+
+document.getElementById('btn-new').addEventListener('click', openModal);
+document.getElementById('btn-cancel').addEventListener('click', () =>
+  document.getElementById('modal-new').classList.remove('open'));
+
+document.getElementById('btn-submit').addEventListener('click', async () => {
+  const url_ids = [...document.querySelectorAll('#url-checkboxes input:checked')]
+                    .map(el => +el.value);
+  const body = {
+    id_salle:       +document.getElementById('f-salle').value,
+    id_utilisateur: +document.getElementById('f-user').value,
+    date_config:    document.getElementById('f-date').value,
+    heure_debut:    document.getElementById('f-debut').value,
+    heure_fin:      document.getElementById('f-fin').value,
+    url_ids
+  };
+  try {
+    await API.post('/api/configs', body);
+    toast('Configuration créée', 'ok');
+    document.getElementById('modal-new').classList.remove('open');
+    loadPageData();
+  } catch(e) {
+    toast(e.data?.error || e.message, 'error');
+  }
+});
+
+/* ── filtre statut ── */
+document.getElementById('filter-statut').addEventListener('change', loadPageData);
+
+/* ── init ── */
+async function init() {
+  [_salles, _urls] = await Promise.all([
+    API.get('/api/salles'),
+    API.get('/api/urls')
+  ]);
+  loadPageData();
+}
+init().catch(e => toast(e.message, 'error'));
+</script>
+{% endblock %}

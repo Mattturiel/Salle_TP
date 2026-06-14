@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}SalleTP{% endblock %} — Gestion Firewall</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #0d0f14;
+      --bg2:       #141820;
+      --bg3:       #1c2230;
+      --border:    #2a3347;
+      --text:      #c8d0e0;
+      --text-dim:  #5c6880;
+      --text-hi:   #e8edf8;
+      --accent:    #3b82f6;
+      --accent2:   #22d3a5;
+      --warn:      #f59e0b;
+      --danger:    #ef4444;
+      --ok:        #22c55e;
+      --pending:   #a78bfa;
+      --font:      'IBM Plex Sans', sans-serif;
+      --mono:      'IBM Plex Mono', monospace;
+      --radius:    6px;
+      --radius-lg: 10px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ── Layout shell ── */
+    .shell {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      grid-template-rows: 48px 1fr;
+      min-height: 100vh;
+    }
+
+    /* ── Topbar ── */
+    .topbar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 20px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar-logo {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-hi);
+      letter-spacing: .04em;
+    }
+    .topbar-logo span { color: var(--accent2); }
+    .topbar-sep { flex: 1; }
+    .topbar-status {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    #status-dot {
+      display: inline-block;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      margin-right: 5px;
+      vertical-align: middle;
+    }
+    #status-dot.ok     { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+    #status-dot.error  { background: var(--danger); }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      padding: 16px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .nav-section {
+      padding: 10px 16px 4px;
+      font-size: 10px;
+      font-family: var(--mono);
+      letter-spacing: .1em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      color: var(--text-dim);
+      text-decoration: none;
+      border-left: 2px solid transparent;
+      transition: color .15s, border-color .15s, background .15s;
+      font-size: 13px;
+    }
+    .nav-link:hover {
+      color: var(--text);
+      background: var(--bg3);
+    }
+    .nav-link.active {
+      color: var(--text-hi);
+      border-left-color: var(--accent);
+      background: rgba(59,130,246,.08);
+    }
+    .nav-icon {
+      width: 16px; height: 16px;
+      opacity: .6;
+      flex-shrink: 0;
+    }
+    .nav-link.active .nav-icon { opacity: 1; }
+
+    /* ── Main content ── */
+    .main {
+      padding: 28px 32px;
+      overflow-y: auto;
+    }
+
+    /* ── Page header ── */
+    .page-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .page-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text-hi);
+      letter-spacing: -.01em;
+    }
+    .page-sub {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 3px;
+      font-family: var(--mono);
+    }
+
+    /* ── Stat cards ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .stat-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px 18px;
+    }
+    .stat-label {
+      font-size: 11px;
+      font-family: var(--mono);
+      letter-spacing: .06em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .stat-value {
+      font-size: 26px;
+      font-family: var(--mono);
+      font-weight: 500;
+      color: var(--text-hi);
+      line-height: 1;
+    }
+    .stat-value.accent  { color: var(--accent); }
+    .stat-value.ok      { color: var(--ok); }
+    .stat-value.pending { color: var(--pending); }
+    .stat-value.warn    { color: var(--warn); }
+
+    /* ── Table ── */
+    .table-wrap {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .table-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .table-toolbar-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-hi);
+      flex: 1;
+    }
+    .filter-select {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 5px 10px;
+      outline: none;
+      cursor: pointer;
+    }
+    .filter-select:focus { border-color: var(--accent); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    thead th {
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 11px;
+      font-family: var(--mono);
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+    }
+    tbody tr {
+      border-bottom: 1px solid rgba(42,51,71,.5);
+      transition: background .1s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--bg3); }
+    td {
+      padding: 11px 14px;
+      font-size: 13px;
+      color: var(--text);
+      vertical-align: middle;
+    }
+    td.mono { font-family: var(--mono); font-size: 12px; }
+
+    /* ── Badges statut ── */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-family: var(--mono);
+      font-weight: 500;
+      letter-spacing: .03em;
+    }
+    .badge-active  { background: rgba(34,197,94,.12);  color: var(--ok);      border: 1px solid rgba(34,197,94,.25); }
+    .badge-pending { background: rgba(167,139,250,.12); color: var(--pending); border: 1px solid rgba(167,139,250,.25); }
+    .badge-failed  { background: rgba(239,68,68,.12);  color: var(--danger);  border: 1px solid rgba(239,68,68,.25); }
+    .badge-en-cours { background: rgba(34,211,165,.15); color: var(--accent2); border: 1px solid rgba(34,211,165,.3); animation: pulse 2s ease-in-out infinite; }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(34,211,165,.3); }
+      50%       { box-shadow: 0 0 0 4px rgba(34,211,165,0); }
+    }
+
+    /* ── Boutons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity .15s, filter .15s;
+      text-decoration: none;
+    }
+    .btn:hover { filter: brightness(1.1); }
+    .btn:active { filter: brightness(.92); }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-ghost   { background: transparent; border-color: var(--border); color: var(--text); }
+    .btn-danger  { background: rgba(239,68,68,.15); border-color: rgba(239,68,68,.3); color: var(--danger); }
+    .btn-ok      { background: rgba(34,197,94,.15); border-color: rgba(34,197,94,.3); color: var(--ok); }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+    /* ── URL pills ── */
+    .url-list { display: flex; flex-wrap: wrap; gap: 4px; }
+    .url-pill {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 7px;
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    /* ── Toast ── */
+    #toast-container {
+      position: fixed;
+      bottom: 20px; right: 20px;
+      display: flex; flex-direction: column; gap: 8px;
+      z-index: 999;
+    }
+    .toast {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 10px 16px;
+      font-size: 13px;
+      color: var(--text-hi);
+      box-shadow: 0 4px 20px rgba(0,0,0,.4);
+      animation: slide-in .2s ease;
+    }
+    .toast.ok     { border-left-color: var(--ok); }
+    .toast.error  { border-left-color: var(--danger); }
+    @keyframes slide-in { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    /* ── Empty state ── */
+    .empty {
+      padding: 40px;
+      text-align: center;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    /* ── Loading ── */
+    .loading {
+      padding: 32px;
+      text-align: center;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    .loading::after {
+      content: '';
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      vertical-align: middle;
+      margin-left: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+  {% block extra_style %}{% endblock %}
+</head>
+<body>
+<div class="shell">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-logo">Salle<span>TP</span></div>
+    <div class="topbar-sep"></div>
+    <div class="topbar-status">
+      <span id="status-dot"></span>
+      <span id="status-text">—</span>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="nav-section">Navigation</div>
+
+    <a href="{{ url_for('ui.index') }}"
+       class="nav-link {% if request.endpoint == 'ui.index' %}active{% endif %}">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M2 6.5L8 2l6 4.5V14a1 1 0 01-1 1H3a1 1 0 01-1-1V6.5z"/>
+      </svg>
+      Tableau de bord
+    </a>
+
+    <a href="{{ url_for('ui.page_configs') }}"
+       class="nav-link {% if request.endpoint == 'ui.page_configs' %}active{% endif %}">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="2" y="3" width="12" height="10" rx="1.5"/>
+        <path d="M5 7h6M5 10h4"/>
+      </svg>
+      Configurations
+    </a>
+
+    <a href="{{ url_for('ui.page_salles') }}"
+       class="nav-link {% if request.endpoint == 'ui.page_salles' %}active{% endif %}">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M2 14V6l6-4 6 4v8"/>
+        <rect x="5" y="9" width="2.5" height="5"/>
+        <rect x="8.5" y="9" width="2.5" height="5"/>
+      </svg>
+      Salles
+    </a>
+
+    <div class="nav-section" style="margin-top: auto;">Système</div>
+    <a href="#" class="nav-link" id="refresh-btn">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M13.5 8A5.5 5.5 0 112 8M13.5 4.5V8h-3.5"/>
+      </svg>
+      Actualiser
+    </a>
+  </nav>
+
+  <!-- Contenu principal -->
+  <main class="main">
+    {% block content %}{% endblock %}
+  </main>
+
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<script>
+/* ─── utilitaires globaux ─── */
+const API = {
+  async get(path) {
+    const r = await fetch(path);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  },
+  async post(path, body) {
+    const r = await fetch(path, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    if (!r.ok) throw Object.assign(new Error(data.error || 'Erreur'), {data});
+    return data;
+  },
+  async del(path) {
+    const r = await fetch(path, { method: 'DELETE' });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+    return r.json();
+  }
+};
+
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+function badge(statut, en_cours = false) {
+  if (en_cours) return `<span class="badge badge-en-cours">● en cours</span>`;
+  const map = { active: 'badge-active', pending: 'badge-pending', failed: 'badge-failed' };
+  const label = { active: 'active', pending: 'pending', failed: 'failed' };
+  return `<span class="badge ${map[statut] || ''}">${label[statut] || statut}</span>`;
+}
+
+function urlPills(urls) {
+  if (!urls || !urls.length) return '<span style="color:var(--text-dim);font-size:11px">—</span>';
+  return `<div class="url-list">${urls.map(u =>
+    `<span class="url-pill">${u.lien}</span>`
+  ).join('')}</div>`;
+}
+
+/* ─── statut API2 (topbar) ─── */
+async function checkStatus() {
+  try {
+    const s = await API.get('/fw/status');  // API2
+    document.getElementById('status-dot').className = 'ok';
+    document.getElementById('status-text').textContent =
+      `fw ok · ${s.regles_actives} règle(s) active(s) · ${s.heure_courante}`;
+  } catch {
+    document.getElementById('status-dot').className = 'error';
+    document.getElementById('status-text').textContent = 'fw hors ligne';
+  }
+}
+
+document.getElementById('refresh-btn').addEventListener('click', e => {
+  e.preventDefault();
+  checkStatus();
+  if (typeof loadPageData === 'function') loadPageData();
+  toast('Actualisation…');
+});
+
+checkStatus();
+setInterval(checkStatus, 30000);
+</script>
+
+{% block extra_script %}{% endblock %}
+</body>
+</html>

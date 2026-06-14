@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Salles{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Salles</div>
+    <div class="page-sub">infrastructure · VLAN 802.1Q</div>
+  </div>
+</div>
+
+<div id="salles-grid" style="
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px,1fr));
+  gap:14px;
+  margin-bottom:28px;">
+  <div class="loading">chargement</div>
+</div>
+
+<div class="table-wrap">
+  <div class="table-toolbar">
+    <div class="table-toolbar-title">Configurations par salle</div>
+  </div>
+  <div id="salle-configs-wrap">
+    <div class="empty">sélectionner une salle ci-dessus</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+let _selectedSalle = null;
+
+async function loadPageData() {
+  const [salles, configs] = await Promise.all([
+    API.get('/api/salles'),
+    API.get('/api/configs')
+  ]);
+  renderCards(salles, configs);
+}
+
+function renderCards(salles, allConfigs) {
+  const grid = document.getElementById('salles-grid');
+  grid.innerHTML = salles.map(s => {
+    const nb = allConfigs.filter(c => c.id_salle === s.id_salle).length;
+    const active = allConfigs.filter(c => c.id_salle === s.id_salle && c.statut === 'active').length;
+    return `
+      <div class="stat-card" style="cursor:pointer;transition:border-color .15s;"
+           id="card-${s.id_salle}"
+           onclick="selectSalle(${s.id_salle})">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <span style="font-size:15px;font-weight:600;color:var(--text-hi)">${s.nom}</span>
+          <span class="badge ${active ? 'badge-active' : 'badge-pending'}" style="font-size:10px">
+            VLAN ${s.id_vlan}
+          </span>
+        </div>
+        <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono);line-height:1.8">
+          <span>${s.capacite} postes</span><br>
+          <span>${nb} config(s) total · ${active} active(s)</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  /* stocker pour usage onclick */
+  window._allConfigsCache = allConfigs;
+  window._sallesCache = salles;
+}
+
+function selectSalle(id) {
+  _selectedSalle = id;
+
+  /* highlight carte sélectionnée */
+  document.querySelectorAll('[id^="card-"]').forEach(el => {
+    el.style.borderColor = el.id === `card-${id}` ? 'var(--accent)' : '';
+    el.style.background  = el.id === `card-${id}` ? 'rgba(59,130,246,.06)' : '';
+  });
+
+  const configs = (window._allConfigsCache || []).filter(c => c.id_salle === id);
+  const salle = (window._sallesCache || []).find(s => s.id_salle === id);
+  const wrap = document.getElementById('salle-configs-wrap');
+
+  if (!configs.length) {
+    wrap.innerHTML = `<div class="empty">aucune configuration pour ${salle?.nom}</div>`;
+    return;
+  }
+  wrap.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>#</th><th>Date</th><th>Horaire</th><th>Statut</th><th>URLs</th><th>FW code</th>
+      </tr></thead>
+      <tbody>
+        ${configs.map(c => `<tr>
+          <td class="mono">${c.id_config}</td>
+          <td class="mono">${c.date_config}</td>
+          <td class="mono">${c.heure_debut}–${c.heure_fin}</td>
+          <td>${badge(c.statut)}</td>
+          <td>${urlPills(c.urls)}</td>
+          <td class="mono" style="font-size:11px;color:var(--text-dim)">${c.fw_response || '—'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+loadPageData().catch(e => toast(e.message, 'error'));
+</script>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Tableau de bord{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Tableau de bord</div>
+    <div class="page-sub">vue d'ensemble · configurations firewall</div>
+  </div>
+</div>
+
+<!-- Statistiques -->
+<div class="stats-grid" id="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Configurations</div>
+    <div class="stat-value accent" id="stat-total">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Actives</div>
+    <div class="stat-value ok" id="stat-active">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Pending</div>
+    <div class="stat-value pending" id="stat-pending">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">En échec</div>
+    <div class="stat-value warn" id="stat-failed">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Salles</div>
+    <div class="stat-value accent" id="stat-salles">—</div>
+  </div>
+</div>
+
+<!-- Configs actives en ce moment -->
+<div class="table-wrap">
+  <div class="table-toolbar">
+    <div class="table-toolbar-title">Configurations actives en ce moment</div>
+  </div>
+  <div id="active-now-wrap">
+    <div class="loading">chargement</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+async function loadPageData() {
+  /* stats */
+  const [all, salles] = await Promise.all([
+    API.get('/api/configs'),
+    API.get('/api/salles')
+  ]);
+  document.getElementById('stat-total').textContent   = all.length;
+  document.getElementById('stat-active').textContent  = all.filter(c => c.statut === 'active').length;
+  document.getElementById('stat-pending').textContent = all.filter(c => c.statut === 'pending').length;
+  document.getElementById('stat-failed').textContent  = all.filter(c => c.statut === 'failed').length;
+  document.getElementById('stat-salles').textContent  = salles.length;
+
+  /* configs en cours côté API2 */
+  let actives = [];
+  try {
+    actives = await API.get('/fw/rules?active=1');
+  } catch { /* API2 down */ }
+
+  const wrap = document.getElementById('active-now-wrap');
+  if (!actives.length) {
+    wrap.innerHTML = '<div class="empty">aucune configuration en cours d\'activation</div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Salle</th><th>VLAN</th><th>Enseignant</th>
+        <th>Horaire</th><th>URLs autorisées</th>
+      </tr></thead>
+      <tbody>
+        ${actives.map(r => `<tr>
+          <td>${r.salle}</td>
+          <td class="mono">${r.id_vlan}</td>
+          <td>${r.enseignant}</td>
+          <td class="mono">${r.heure_debut}–${r.heure_fin}</td>
+          <td>${urlPills(r.urls)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+loadPageData().catch(e => toast(e.message, 'error'));
+</script>
+{% endblock %}

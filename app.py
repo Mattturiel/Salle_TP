@@ -1,6 +1,6 @@
 """
 API1 - SalleTP : gestion des configurations firewall
-Matthieu Turiel - BTS CIEL E6IR 2026
+BTS CIEL E6IR 2026
 
 Dépendances : flask, flask-bcrypt, pymysql
 
@@ -208,10 +208,26 @@ def create_config():
     if missing:
         return jsonify({"error": f"champs manquants: {missing}"}), 400
 
+    url_ids = data.get("url_ids", [])
+    if not url_ids:
+        return jsonify({"error": "au moins une URL doit être fournie"}), 400
+
+    try:
+        date_cfg = datetime.date.fromisoformat(data["date_config"])
+    except ValueError:
+        return jsonify({"error": "date_config invalide, format attendu: YYYY-MM-DD"}), 400
+    if date_cfg < datetime.date.today():
+        return jsonify({"error": "date_config ne peut pas être dans le passé"}), 400
+
     h_debut = parse_time(data["heure_debut"])
     h_fin   = parse_time(data["heure_fin"])
     if h_fin <= h_debut:
         return jsonify({"error": "heure_fin doit être > heure_debut"}), 400
+
+    if date_cfg == datetime.date.today():
+        now_hms = datetime.datetime.now().strftime("%H:%M:%S")
+        if h_fin <= now_hms:
+            return jsonify({"error": "heure_fin est déjà passée pour aujourd'hui"}), 400
 
     new_id = execute(
         """INSERT INTO configuration
@@ -220,7 +236,7 @@ def create_config():
         (data["id_salle"], data["id_utilisateur"],
          data["date_config"], h_debut, h_fin)
     )
-    for uid in data.get("url_ids", []):
+    for uid in url_ids:
         execute("INSERT INTO configuration_url (id_config, id_url) VALUES (%s, %s)",
                 (new_id, uid))
 

@@ -83,6 +83,7 @@
     <select class="filter-select" id="filter-statut">
       <option value="">tous les statuts</option>
       <option value="active">active</option>
+      <option value="preactive">preactive</option>
       <option value="pending">pending</option>
       <option value="failed">failed</option>
     </select>
@@ -185,7 +186,10 @@ function renderActions(c) {
   if (c.statut === 'pending' || c.statut === 'failed') {
     btns.push(`<button class="btn btn-ok btn-sm" data-activate="${c.id_config}">Activer</button>`);
   }
-  if (c.statut !== 'active') {
+  if (c.statut === 'preactive') {
+    btns.push(`<span style="color:var(--text-dim);font-size:11px">en cours…</span>`);
+  }
+  if (c.statut !== 'active' && c.statut !== 'preactive') {
     btns.push(`<button class="btn btn-danger btn-sm" data-delete="${c.id_config}">Suppr.</button>`);
   }
   return btns.join(' ') || '<span style="color:var(--text-dim);font-size:11px">—</span>';
@@ -228,8 +232,11 @@ async function openModal() {
       ${u.lien}
     </label>`).join('');
 
-  /* date par défaut = aujourd'hui */
-  document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
+  /* date par défaut = aujourd'hui, minimum = aujourd'hui */
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const fDate = document.getElementById('f-date');
+  fDate.min   = todayISO;
+  fDate.value = todayISO;
 
   document.getElementById('modal-new').classList.add('open');
 }
@@ -241,12 +248,33 @@ document.getElementById('btn-cancel').addEventListener('click', () =>
 document.getElementById('btn-submit').addEventListener('click', async () => {
   const url_ids = [...document.querySelectorAll('#url-checkboxes input:checked')]
                     .map(el => +el.value);
+
+  /* ── validations client ── */
+  if (!url_ids.length) {
+    toast('Sélectionnez au moins une URL', 'error'); return;
+  }
+
+  const dateVal = document.getElementById('f-date').value;
+  const todayISO = new Date().toISOString().slice(0, 10);
+  if (!dateVal || dateVal < todayISO) {
+    toast('La date ne peut pas être dans le passé', 'error'); return;
+  }
+
+  const finVal = document.getElementById('f-fin').value;   /* HH:MM */
+  if (dateVal === todayISO && finVal) {
+    const now = new Date();
+    const nowHHMM = now.toTimeString().slice(0, 5);         /* HH:MM */
+    if (finVal <= nowHHMM) {
+      toast("L'heure de fin est déjà passée pour aujourd'hui", 'error'); return;
+    }
+  }
+
   const body = {
     id_salle:       +document.getElementById('f-salle').value,
     id_utilisateur: +document.getElementById('f-user').value,
-    date_config:    document.getElementById('f-date').value,
+    date_config:    dateVal,
     heure_debut:    document.getElementById('f-debut').value,
-    heure_fin:      document.getElementById('f-fin').value,
+    heure_fin:      finVal,
     url_ids
   };
   try {

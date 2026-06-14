@@ -346,5 +346,18 @@ def activate_config(id_config):
     }), 502
 
 
+# ---------------------------------------------------------------------------
+# Proxy statut API2
+# ---------------------------------------------------------------------------
+
+@app.get("/fw/status")
+def fw_status():
+    try:
+        resp = requests.get(f"{FW_API_URL}/fw/status", timeout=5)
+        return jsonify(resp.json()), resp.status_code
+    except requests.exceptions.ConnectionError:
+        return jsonify({"error": "API2 injoignable"}), 502
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

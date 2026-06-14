@@ -400,6 +400,15 @@
       Salles
     </a>
 
+    <a href="{{ url_for('ui.page_fw') }}"
+       class="nav-link {% if request.endpoint == 'ui.page_fw' %}active{% endif %}">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="1" y="3" width="14" height="10" rx="1.5"/>
+        <path d="M4 7h2M4 10h1M8 7h4M8 10h2"/>
+      </svg>
+      Firewall
+    </a>
+
     <div class="nav-section" style="margin-top: auto;">Système</div>
     <a href="#" class="nav-link" id="refresh-btn">
       <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">

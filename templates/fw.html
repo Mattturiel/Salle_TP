@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Firewall{% endblock %}
+
+{% block extra_style %}
+<style>
+  .status-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 12px 18px;
+    margin-bottom: 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .status-banner .dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .status-banner .dot.ok    { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .status-banner .dot.error { background: var(--danger); }
+  .status-banner .sep { color: var(--border); margin: 0 4px; }
+  #banner-time { margin-left: auto; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Firewall</div>
+    <div class="page-sub">règles chargées dans le simulateur API2</div>
+  </div>
+  <button class="btn btn-ghost" id="btn-reload" title="Charger les règles depuis API2">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M13.5 8A5.5 5.5 0 112 8M13.5 4.5V8h-3.5"/>
+    </svg>
+    Rafraîchir
+  </button>
+</div>
+
+<!-- Bannière statut API2 -->
+<div class="status-banner" id="status-banner">
+  <span class="dot" id="fw-dot"></span>
+  <span id="fw-status-text">connexion à API2…</span>
+  <span class="sep">·</span>
+  <span id="fw-mem">— règles en mémoire</span>
+  <span class="sep">·</span>
+  <span id="fw-active-count">— actives</span>
+  <span id="banner-time"></span>
+</div>
+
+<!-- Stat cards -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Règles en mémoire</div>
+    <div class="stat-value accent" id="stat-mem">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">En cours</div>
+    <div class="stat-value ok" id="stat-en-cours">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Heure API2</div>
+    <div class="stat-value" style="font-size:16px;color:var(--text-hi)" id="stat-heure">—</div>
+  </div>
+</div>
+
+<!-- Table des règles -->
+<div class="table-wrap">
+  <div class="table-toolbar">
+    <div class="table-toolbar-title">Règles firewall</div>
+    <select class="filter-select" id="filter-active">
+      <option value="0">toutes les règles</option>
+      <option value="1">en cours uniquement</option>
+    </select>
+  </div>
+  <div id="rules-wrap">
+    <div class="loading">chargement</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+async function loadStatus() {
+  const dot  = document.getElementById('fw-dot');
+  const text = document.getElementById('fw-status-text');
+  try {
+    const s = await API.get('/fw/status');
+    dot.className = 'dot ok';
+    text.textContent = 'API2 en ligne';
+    document.getElementById('fw-mem').textContent          = `${s.regles_en_memoire} règle(s) en mémoire`;
+    document.getElementById('fw-active-count').textContent = `${s.regles_actives} active(s)`;
+    document.getElementById('banner-time').textContent     = s.heure_courante;
+    document.getElementById('stat-mem').textContent        = s.regles_en_memoire;
+    document.getElementById('stat-en-cours').textContent   = s.regles_actives;
+    document.getElementById('stat-heure').textContent      = s.heure_courante.slice(11); /* HH:MM:SS */
+  } catch {
+    dot.className = 'dot error';
+    text.textContent = 'API2 injoignable';
+    document.getElementById('fw-mem').textContent          = '—';
+    document.getElementById('fw-active-count').textContent = '—';
+    document.getElementById('stat-mem').textContent        = '—';
+    document.getElementById('stat-en-cours').textContent   = '—';
+    document.getElementById('stat-heure').textContent      = '—';
+  }
+}
+
+async function loadRules() {
+  const onlyActive = document.getElementById('filter-active').value;
+  const wrap = document.getElementById('rules-wrap');
+  wrap.innerHTML = '<div class="loading">chargement</div>';
+
+  let rules;
+  try {
+    rules = await API.get(`/fw/rules?active=${onlyActive}`);
+  } catch(e) {
+    wrap.innerHTML = `<div class="empty">impossible de joindre API2 — ${e.message}</div>`;
+    return;
+  }
+
+  if (!rules.length) {
+    wrap.innerHTML = '<div class="empty">aucune règle chargée</div>';
+    return;
+  }
+
+  wrap.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>#</th><th>Salle</th><th>VLAN</th><th>Enseignant</th>
+        <th>Date</th><th>Horaire</th><th>URLs autorisées</th><th>Statut</th>
+      </tr></thead>
+      <tbody>
+        ${rules.map(r => `<tr>
+          <td class="mono">${r.id_config}</td>
+          <td>${r.salle}</td>
+          <td class="mono">${r.id_vlan}</td>
+          <td>${r.enseignant}</td>
+          <td class="mono">${r.date_config}</td>
+          <td class="mono">${r.heure_debut}–${r.heure_fin}</td>
+          <td>${urlPills(r.urls)}</td>
+          <td>${badge(r.statut, r.en_cours)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+async function loadPageData() {
+  await Promise.all([loadStatus(), loadRules()]);
+}
+
+document.getElementById('filter-active').addEventListener('change', loadRules);
+document.getElementById('btn-reload').addEventListener('click', () => {
+  loadPageData();
+  toast('Actualisation…');
+});
+
+loadPageData().catch(e => toast(e.message, 'error'));
+setInterval(loadPageData, 15000);
+</script>
+{% endblock %}

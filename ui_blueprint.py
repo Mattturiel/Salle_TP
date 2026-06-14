@@ -38,9 +38,3 @@ def page_configs():
 def page_salles():
     """Liste des salles et leurs VLAN."""
     return render_template("salles.html")
-
-
-@ui_bp.get("/fw")
-def page_fw():
-    """Interface du simulateur firewall (API2)."""
-    return render_template("fw.html")

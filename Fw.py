@@ -18,10 +18,9 @@ import os
 import json
 import requests
 from datetime import datetime
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, redirect, render_template
 
-app = Flask(__name__)
-app.json.ensure_ascii = False
+app = Flask(__name__, template_folder=os.path.join(os.path.dirname(__file__), "fw_templates"))
 
 API1_URL     = os.getenv("API1_URL",     "http://127.0.0.1:5000")
 FW_RULES_DIR = os.getenv("FW_RULES_DIR", os.path.join(os.path.dirname(__file__), "fw_data"))
@@ -135,6 +134,19 @@ def status():
         "regles_actives":    actives,
         "heure_courante":    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }), 200
+
+
+# ---------------------------------------------------------------------------
+# UI
+# ---------------------------------------------------------------------------
+
+@app.get("/")
+def root():
+    return redirect("/ui/fw")
+
+@app.get("/ui/fw")
+def ui_fw():
+    return render_template("fw.html")
 
 
 if __name__ == "__main__":

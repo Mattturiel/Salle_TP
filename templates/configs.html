@@ -102,8 +102,8 @@
       <select id="f-salle"></select>
     </div>
     <div class="form-row">
-      <label>Enseignant (id utilisateur)</label>
-      <input type="number" id="f-user" placeholder="ex : 1" min="1">
+      <label>Enseignant</label>
+      <select id="f-user"></select>
     </div>
     <div class="form-row">
       <label>Date d'activation</label>
@@ -135,7 +135,7 @@
 
 {% block extra_script %}
 <script>
-let _salles = [], _urls = [];
+let _salles = [], _urls = [], _users = [];
 
 /* ── chargement ── */
 async function loadPageData() {
@@ -154,15 +154,18 @@ function renderTable(configs) {
   wrap.innerHTML = `
     <table>
       <thead><tr>
-        <th>#</th><th>Salle</th><th>Date</th><th>Horaire</th>
+        <th>#</th><th>Salle</th><th>Enseignant</th><th>Date</th><th>Horaire</th>
         <th>Statut</th><th>URLs</th><th>FW</th><th>Actions</th>
       </tr></thead>
       <tbody>
         ${configs.map(c => {
           const salle = _salles.find(s => s.id_salle === c.id_salle);
+          const user  = _users.find(u => u.id_utilisateur === c.id_utilisateur);
+          const userName = user ? `${user.prenom} ${user.nom}` : `#${c.id_utilisateur}`;
           return `<tr id="row-${c.id_config}">
             <td class="mono">${c.id_config}</td>
             <td>${salle ? salle.nom : c.id_salle}</td>
+            <td>${userName}</td>
             <td class="mono">${c.date_config}</td>
             <td class="mono">${c.heure_debut}–${c.heure_fin}</td>
             <td>${badge(c.statut)}</td>
@@ -222,6 +225,11 @@ async function openModal() {
   const sel = document.getElementById('f-salle');
   sel.innerHTML = _salles.map(s =>
     `<option value="${s.id_salle}">${s.nom} (VLAN ${s.id_vlan})</option>`
+  ).join('');
+
+  /* pré-remplir enseignant select */
+  document.getElementById('f-user').innerHTML = _users.map(u =>
+    `<option value="${u.id_utilisateur}">${u.prenom} ${u.nom}</option>`
   ).join('');
 
   /* checkboxes URLs */
@@ -292,9 +300,10 @@ document.getElementById('filter-statut').addEventListener('change', loadPageData
 
 /* ── init ── */
 async function init() {
-  [_salles, _urls] = await Promise.all([
+  [_salles, _urls, _users] = await Promise.all([
     API.get('/api/salles'),
-    API.get('/api/urls')
+    API.get('/api/urls'),
+    API.get('/api/users'),
   ]);
   loadPageData();
 }

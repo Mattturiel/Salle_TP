@@ -413,6 +413,7 @@
       Salles
     </a>
 
+    {% if current_user and current_user.droit == 2 %}
     <a href="{{ url_for('ui.page_users') }}"
        class="nav-link {% if request.endpoint == 'ui.page_users' %}active{% endif %}">
       <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -422,6 +423,7 @@
       </svg>
       Utilisateurs
     </a>
+    {% endif %}
 
     <div class="nav-section" style="margin-top: auto;">Système</div>
     <a href="#" class="nav-link" id="refresh-btn">

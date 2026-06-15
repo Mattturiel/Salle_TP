@@ -274,6 +274,8 @@ def get_user(id_utilisateur):
 
 @app.post("/api/users")
 def create_user():
+    if not _is_admin():
+        return jsonify({"error": "accès refusé : seuls les administrateurs peuvent créer des utilisateurs"}), 403
     data = request.get_json(force=True)
     required = ["nom", "prenom", "email", "mot_de_passe", "droit"]
     missing  = [f for f in required if not data.get(f)]

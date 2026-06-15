@@ -47,7 +47,9 @@
     <div class="page-title">Utilisateurs</div>
     <div class="page-sub">gestion des enseignants et administrateurs</div>
   </div>
+  {% if current_user and current_user.droit == 2 %}
   <button class="btn btn-primary" id="btn-new">+ Nouvel utilisateur</button>
+  {% endif %}
 </div>
 
 <div class="table-wrap">
@@ -57,6 +59,7 @@
   <div id="users-wrap"><div class="loading">chargement</div></div>
 </div>
 
+{% if current_user and current_user.droit == 2 %}
 <!-- Modal créer / éditer -->
 <div class="modal-backdrop" id="modal-user">
   <div class="modal">
@@ -93,6 +96,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block extra_script %}
@@ -172,8 +176,8 @@ function closeModal() {
   document.getElementById('modal-user').classList.remove('open');
 }
 
-document.getElementById('btn-new').addEventListener('click', openCreate);
-document.getElementById('btn-cancel').addEventListener('click', closeModal);
+document.getElementById('btn-new')?.addEventListener('click', openCreate);
+document.getElementById('btn-cancel')?.addEventListener('click', closeModal);
 
 document.getElementById('btn-submit').addEventListener('click', async () => {
   const prenom = document.getElementById('f-prenom').value.trim();

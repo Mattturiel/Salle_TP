@@ -38,3 +38,9 @@ def page_configs():
 def page_salles():
     """Liste des salles et leurs VLAN."""
     return render_template("salles.html")
+
+
+@ui_bp.get("/users")
+def page_users():
+    """Gestion des utilisateurs."""
+    return render_template("users.html")

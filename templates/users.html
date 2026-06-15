@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}Utilisateurs{% endblock %}
+
+{% block extra_style %}
+<style>
+  .modal-backdrop {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.6);
+    z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    width: 440px;
+    max-width: 95vw;
+  }
+  .modal-title { font-size: 15px; font-weight: 600; color: var(--text-hi); margin-bottom: 18px; }
+  .form-row { margin-bottom: 14px; }
+  label {
+    display: block; font-size: 11px; font-family: var(--mono);
+    letter-spacing: .05em; text-transform: uppercase;
+    color: var(--text-dim); margin-bottom: 5px;
+  }
+  input, select {
+    width: 100%; background: var(--bg3);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text-hi); font-family: var(--mono); font-size: 13px;
+    padding: 8px 10px; outline: none;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  .form-row-inline { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .form-hint { font-size: 11px; color: var(--text-dim); font-family: var(--mono); margin-top: 4px; }
+  .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+  .badge-admin   { background: rgba(59,130,246,.12); color: var(--accent);  border: 1px solid rgba(59,130,246,.25); }
+  .badge-teacher { background: rgba(34,211,165,.12); color: var(--accent2); border: 1px solid rgba(34,211,165,.25); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Utilisateurs</div>
+    <div class="page-sub">gestion des enseignants et administrateurs</div>
+  </div>
+  <button class="btn btn-primary" id="btn-new">+ Nouvel utilisateur</button>
+</div>
+
+<div class="table-wrap">
+  <div class="table-toolbar">
+    <div class="table-toolbar-title">Tous les utilisateurs</div>
+  </div>
+  <div id="users-wrap"><div class="loading">chargement</div></div>
+</div>
+
+<!-- Modal créer / éditer -->
+<div class="modal-backdrop" id="modal-user">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">Nouvel utilisateur</div>
+    <div class="form-row form-row-inline">
+      <div>
+        <label>Prénom</label>
+        <input type="text" id="f-prenom" placeholder="Jean">
+      </div>
+      <div>
+        <label>Nom</label>
+        <input type="text" id="f-nom" placeholder="Dupont">
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Email</label>
+      <input type="email" id="f-email" placeholder="jean.dupont@school.fr">
+    </div>
+    <div class="form-row">
+      <label>Mot de passe</label>
+      <input type="password" id="f-pwd" placeholder="••••••••">
+      <div class="form-hint" id="pwd-hint">Laisser vide pour ne pas modifier</div>
+    </div>
+    <div class="form-row">
+      <label>Rôle</label>
+      <select id="f-droit">
+        <option value="1">Enseignant</option>
+        <option value="2">Administrateur</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="btn-cancel">Annuler</button>
+      <button class="btn btn-primary" id="btn-submit">Créer</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+let _editId = null;
+
+function droitBadge(droit) {
+  return droit === 2
+    ? '<span class="badge badge-admin">admin</span>'
+    : '<span class="badge badge-teacher">enseignant</span>';
+}
+
+/* ── table ── */
+async function loadPageData() {
+  const wrap = document.getElementById('users-wrap');
+  const users = await API.get('/api/users');
+  if (!users.length) {
+    wrap.innerHTML = '<div class="empty">aucun utilisateur</div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>#</th><th>Prénom</th><th>Nom</th><th>Email</th><th>Rôle</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
+        ${users.map(u => `<tr>
+          <td class="mono">${u.id_utilisateur}</td>
+          <td>${u.prenom}</td>
+          <td>${u.nom}</td>
+          <td class="mono" style="font-size:12px">${u.email}</td>
+          <td>${droitBadge(u.droit)}</td>
+          <td>
+            <button class="btn btn-ghost btn-sm" data-edit="${u.id_utilisateur}">Modifier</button>
+            <button class="btn btn-danger btn-sm" data-delete="${u.id_utilisateur}">Suppr.</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+
+  document.querySelectorAll('[data-edit]').forEach(btn =>
+    btn.addEventListener('click', () => openEdit(+btn.dataset.edit, users)));
+  document.querySelectorAll('[data-delete]').forEach(btn =>
+    btn.addEventListener('click', () => deleteUser(+btn.dataset.delete)));
+}
+
+/* ── modal ── */
+function openCreate() {
+  _editId = null;
+  document.getElementById('modal-title').textContent  = 'Nouvel utilisateur';
+  document.getElementById('btn-submit').textContent   = 'Créer';
+  document.getElementById('pwd-hint').style.display   = 'none';
+  document.getElementById('f-prenom').value = '';
+  document.getElementById('f-nom').value    = '';
+  document.getElementById('f-email').value  = '';
+  document.getElementById('f-pwd').value    = '';
+  document.getElementById('f-droit').value  = '1';
+  document.getElementById('modal-user').classList.add('open');
+}
+
+function openEdit(id, users) {
+  const u = users.find(u => u.id_utilisateur === id);
+  if (!u) return;
+  _editId = id;
+  document.getElementById('modal-title').textContent  = 'Modifier l\'utilisateur';
+  document.getElementById('btn-submit').textContent   = 'Enregistrer';
+  document.getElementById('pwd-hint').style.display   = 'block';
+  document.getElementById('f-prenom').value = u.prenom;
+  document.getElementById('f-nom').value    = u.nom;
+  document.getElementById('f-email').value  = u.email;
+  document.getElementById('f-pwd').value    = '';
+  document.getElementById('f-droit').value  = u.droit;
+  document.getElementById('modal-user').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-user').classList.remove('open');
+}
+
+document.getElementById('btn-new').addEventListener('click', openCreate);
+document.getElementById('btn-cancel').addEventListener('click', closeModal);
+
+document.getElementById('btn-submit').addEventListener('click', async () => {
+  const prenom = document.getElementById('f-prenom').value.trim();
+  const nom    = document.getElementById('f-nom').value.trim();
+  const email  = document.getElementById('f-email').value.trim();
+  const pwd    = document.getElementById('f-pwd').value;
+  const droit  = +document.getElementById('f-droit').value;
+
+  if (!prenom || !nom || !email) {
+    toast('Prénom, nom et email sont requis', 'error'); return;
+  }
+  if (!_editId && !pwd) {
+    toast('Le mot de passe est requis à la création', 'error'); return;
+  }
+
+  try {
+    if (_editId) {
+      const body = { prenom, nom, email, droit };
+      if (pwd) body.mot_de_passe = pwd;
+      await API.put(`/api/users/${_editId}`, body);
+      toast('Utilisateur mis à jour', 'ok');
+    } else {
+      await API.post('/api/users', { prenom, nom, email, mot_de_passe: pwd, droit });
+      toast('Utilisateur créé', 'ok');
+    }
+    closeModal();
+    loadPageData();
+  } catch(e) {
+    toast(e.data?.error || e.message, 'error');
+  }
+});
+
+async function deleteUser(id) {
+  if (!confirm(`Supprimer l'utilisateur #${id} ?`)) return;
+  try {
+    await API.del(`/api/users/${id}`);
+    toast('Utilisateur supprimé', 'ok');
+    loadPageData();
+  } catch(e) {
+    toast(e.data?.error || e.message, 'error');
+  }
+}
+
+loadPageData().catch(e => toast(e.message, 'error'));
+</script>
+{% endblock %}

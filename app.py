@@ -82,6 +82,12 @@ def require_login():
 def inject_current_user():
     return {"current_user": session.get("user")}
 
+def _is_admin():
+    return session.get("user", {}).get("droit") == 2
+
+def _current_uid():
+    return session.get("user", {}).get("id_utilisateur")
+
 @app.get("/")
 def root():
     return redirect(url_for("ui.index"))
@@ -293,6 +299,8 @@ def update_user(id_utilisateur):
     if not query("SELECT id_utilisateur FROM utilisateur WHERE id_utilisateur = %s",
                  (id_utilisateur,), one=True):
         abort(404)
+    if not _is_admin() and id_utilisateur != _current_uid():
+        return jsonify({"error": "accès refusé : vous ne pouvez modifier que votre propre compte"}), 403
     data = request.get_json(force=True)
 
     if "email" in data:
@@ -326,6 +334,8 @@ def delete_user(id_utilisateur):
     if not query("SELECT id_utilisateur FROM utilisateur WHERE id_utilisateur = %s",
                  (id_utilisateur,), one=True):
         abort(404)
+    if not _is_admin() and id_utilisateur != _current_uid():
+        return jsonify({"error": "accès refusé : vous ne pouvez supprimer que votre propre compte"}), 403
     if query("SELECT id_config FROM configuration WHERE id_utilisateur = %s LIMIT 1",
              (id_utilisateur,), one=True):
         return jsonify({"error": "impossible de supprimer : cet utilisateur a des configurations"}), 409
@@ -419,9 +429,11 @@ def get_config(id_config):
 
 @app.put("/api/configs/<int:id_config>")
 def update_config(id_config):
-    cfg = query("SELECT statut FROM configuration WHERE id_config = %s", (id_config,), one=True)
+    cfg = query("SELECT statut, id_utilisateur FROM configuration WHERE id_config = %s", (id_config,), one=True)
     if not cfg:
         abort(404)
+    if not _is_admin() and cfg["id_utilisateur"] != _current_uid():
+        return jsonify({"error": "accès refusé : vous ne pouvez modifier que vos propres configurations"}), 403
     if cfg["statut"] != "pending":
         return jsonify({"error": "seules les configurations en statut 'pending' peuvent être modifiées"}), 409
 
@@ -468,10 +480,12 @@ def update_config(id_config):
 
 @app.delete("/api/configs/<int:id_config>")
 def delete_config(id_config):
-    row = query("SELECT statut FROM configuration WHERE id_config = %s",
+    row = query("SELECT statut, id_utilisateur FROM configuration WHERE id_config = %s",
                 (id_config,), one=True)
     if not row:
         abort(404)
+    if not _is_admin() and row["id_utilisateur"] != _current_uid():
+        return jsonify({"error": "accès refusé : vous ne pouvez supprimer que vos propres configurations"}), 403
     if row["statut"] == "active":
         return jsonify({"error": "impossible de supprimer une config active"}), 409
     execute("DELETE FROM configuration WHERE id_config = %s", (id_config,))

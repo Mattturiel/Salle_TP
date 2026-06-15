@@ -21,6 +21,7 @@ from datetime import datetime
 from flask import Flask, jsonify, request, redirect, render_template
 
 app = Flask(__name__, template_folder=os.path.join(os.path.dirname(__file__), "fw_templates"))
+app.json.ensure_ascii = False
 
 API1_URL     = os.getenv("API1_URL",     "http://127.0.0.1:5000")
 FW_RULES_DIR = os.getenv("FW_RULES_DIR", os.path.join(os.path.dirname(__file__), "fw_data"))

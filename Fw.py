@@ -149,5 +149,22 @@ def ui_fw():
     return render_template("fw.html")
 
 
+# ---------------------------------------------------------------------------
+# Chargement initial au démarrage
+# ---------------------------------------------------------------------------
+
+def _startup_load():
+    global _rules_cache
+    try:
+        rules = fetch_active_rules()
+        _rules_cache = rules
+        dump_rules_to_file(rules)
+        print(f"[startup] {len(rules)} règle(s) chargée(s) depuis API1")
+    except Exception as e:
+        print(f"[startup] impossible de joindre API1 : {e} — cache vide")
+
+_startup_load()
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, debug=True)

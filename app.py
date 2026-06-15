@@ -73,6 +73,10 @@ _PUBLIC_PATHS = {"/login", "/api/auth/login"}
 def require_login():
     if request.path in _PUBLIC_PATHS or request.path.startswith("/static"):
         return
+    if request.method == "GET" and (
+        request.path.startswith("/api/") or request.path.startswith("/fw/")
+    ):
+        return
     if "user" not in session:
         if request.path.startswith("/api/"):
             return jsonify({"error": "non authentifié"}), 401

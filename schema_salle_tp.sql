@@ -120,9 +120,9 @@ INSERT INTO salle (nom, capacite, id_vlan) VALUES
 
 -- mot_de_passe = 'changeme' (bcrypt cost=4, usage test uniquement)
 INSERT INTO utilisateur (nom, prenom, email, mot_de_passe, droit) VALUES
-    ('Turiel', 'Matthieu', 'matt@labmatt.local',        '$2b$04$lI6jy9DUW1oWtu1SMvu2.ucnsjEIOpJbANhgPmsbCG2YRqJBxjvgy', 1),
-    ('Dupont', 'Toto',     'toto.dupont@labmatt.local', '$2b$04$Y/53i6U9SCmPVpolsc555e.prrAU6WpmYGbTJJYnChxVh/6y3eOkO',  1),
-    ('Sys',    'Admin',    'admin@labmatt.local',       '$2b$04$lI6jy9DUW1oWtu1SMvu2.ucnsjEIOpJbANhgPmsbCG2YRqJBxjvgy',  2);
+    ('Turiel', 'Matthieu', 'matt@labmatt.local',        '$2b$04$lI6jy9DUW1oWtu1SMvu2.ucnsjEIOpJbANhgPmsbCG2YRqJBxjvgy', 2),
+    ('Dupont', 'Toto',     'toto.dupont@labmatt.local', '$2b$04$lI6jy9DUW1oWtu1SMvu2.ucnsjEIOpJbANhgPmsbCG2YRqJBxjvgy',  1),
+    ('System',    'Admin',    'admin@labmatt.local',       '$2b$04$lI6jy9DUW1oWtu1SMvu2.ucnsjEIOpJbANhgPmsbCG2YRqJBxjvgy',  2);
 
 INSERT INTO url (lien, description) VALUES
     ('www.netacad.com',        'Cisco Netacad'),

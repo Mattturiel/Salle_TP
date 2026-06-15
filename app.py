@@ -34,6 +34,7 @@ Routes :
     GET  /api/configs              ?statut=pending|active|failed
     GET  /api/configs/active       (consommé par API FW)
     GET  /api/configs/<id>
+    PUT  /api/configs/<id>          (statut pending uniquement)
     DELETE /api/configs/<id>
     POST /api/configs/<id>/activate
 """
@@ -366,6 +367,55 @@ def get_config(id_config):
     if not row:
         abort(404)
     return jsonify(config_with_urls(row))
+
+
+@app.put("/api/configs/<int:id_config>")
+def update_config(id_config):
+    cfg = query("SELECT statut FROM configuration WHERE id_config = %s", (id_config,), one=True)
+    if not cfg:
+        abort(404)
+    if cfg["statut"] != "pending":
+        return jsonify({"error": "seules les configurations en statut 'pending' peuvent être modifiées"}), 409
+
+    data = request.get_json(force=True)
+
+    url_ids = data.get("url_ids", [])
+    if not url_ids:
+        return jsonify({"error": "au moins une URL doit être fournie"}), 400
+
+    try:
+        date_cfg = datetime.date.fromisoformat(data["date_config"])
+    except (KeyError, ValueError):
+        return jsonify({"error": "date_config invalide, format attendu: YYYY-MM-DD"}), 400
+    if date_cfg < datetime.date.today():
+        return jsonify({"error": "date_config ne peut pas être dans le passé"}), 400
+
+    try:
+        h_debut = parse_time(data["heure_debut"])
+        h_fin   = parse_time(data["heure_fin"])
+    except (KeyError, ValueError):
+        return jsonify({"error": "heure_debut et heure_fin sont requis (format HH:MM)"}), 400
+    if h_fin <= h_debut:
+        return jsonify({"error": "heure_fin doit être > heure_debut"}), 400
+
+    if date_cfg == datetime.date.today():
+        if h_fin <= datetime.datetime.now().strftime("%H:%M:%S"):
+            return jsonify({"error": "heure_fin est déjà passée pour aujourd'hui"}), 400
+
+    execute("""UPDATE configuration
+               SET id_salle=%s, id_utilisateur=%s, date_config=%s,
+                   heure_debut=%s, heure_fin=%s
+               WHERE id_config=%s""",
+            (data["id_salle"], data["id_utilisateur"],
+             data["date_config"], h_debut, h_fin, id_config))
+
+    execute("DELETE FROM configuration_url WHERE id_config = %s", (id_config,))
+    for uid in url_ids:
+        execute("INSERT INTO configuration_url (id_config, id_url) VALUES (%s, %s)",
+                (id_config, uid))
+
+    row = query("SELECT * FROM configuration WHERE id_config = %s", (id_config,), one=True)
+    return jsonify({"message": "config mise à jour", "config": config_with_urls(row)}), 200
 
 
 @app.delete("/api/configs/<int:id_config>")

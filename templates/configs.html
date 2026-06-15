@@ -93,6 +93,43 @@
   </div>
 </div>
 
+<!-- Modal édition configuration (pending) -->
+<div class="modal-backdrop" id="modal-edit">
+  <div class="modal">
+    <div class="modal-title">Modifier la configuration <span id="edit-id-label"></span></div>
+    <div class="form-row">
+      <label>Salle</label>
+      <select id="ef-salle"></select>
+    </div>
+    <div class="form-row">
+      <label>Enseignant</label>
+      <select id="ef-user"></select>
+    </div>
+    <div class="form-row">
+      <label>Date d'activation</label>
+      <input type="date" id="ef-date">
+    </div>
+    <div class="form-row form-row-inline">
+      <div>
+        <label>Heure début</label>
+        <input type="time" id="ef-debut">
+      </div>
+      <div>
+        <label>Heure fin</label>
+        <input type="time" id="ef-fin">
+      </div>
+    </div>
+    <div class="form-row">
+      <label>URLs autorisées</label>
+      <div class="url-checkboxes" id="edit-url-checkboxes"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="edit-cancel">Annuler</button>
+      <button class="btn btn-primary" id="edit-submit">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal nouvelle configuration -->
 <div class="modal-backdrop" id="modal-new">
   <div class="modal">
@@ -178,6 +215,8 @@ function renderTable(configs) {
     </table>`;
 
   /* boutons actions */
+  document.querySelectorAll('[data-edit]').forEach(btn =>
+    btn.addEventListener('click', () => openEditModal(+btn.dataset.edit, configs)));
   document.querySelectorAll('[data-activate]').forEach(btn =>
     btn.addEventListener('click', () => activateConfig(+btn.dataset.activate)));
   document.querySelectorAll('[data-delete]').forEach(btn =>
@@ -186,7 +225,11 @@ function renderTable(configs) {
 
 function renderActions(c) {
   const btns = [];
-  if (c.statut === 'pending' || c.statut === 'failed') {
+  if (c.statut === 'pending') {
+    btns.push(`<button class="btn btn-ghost btn-sm" data-edit="${c.id_config}">Modifier</button>`);
+    btns.push(`<button class="btn btn-ok btn-sm" data-activate="${c.id_config}">Activer</button>`);
+  }
+  if (c.statut === 'failed') {
     btns.push(`<button class="btn btn-ok btn-sm" data-activate="${c.id_config}">Activer</button>`);
   }
   if (c.statut === 'preactive') {
@@ -289,6 +332,79 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
     await API.post('/api/configs', body);
     toast('Configuration créée', 'ok');
     document.getElementById('modal-new').classList.remove('open');
+    loadPageData();
+  } catch(e) {
+    toast(e.data?.error || e.message, 'error');
+  }
+});
+
+/* ── modal édition ── */
+let _editConfigId = null;
+
+function openEditModal(id, configs) {
+  const c = configs.find(c => c.id_config === id);
+  if (!c) return;
+  _editConfigId = id;
+
+  document.getElementById('edit-id-label').textContent = `#${id}`;
+
+  document.getElementById('ef-salle').innerHTML = _salles.map(s =>
+    `<option value="${s.id_salle}" ${s.id_salle === c.id_salle ? 'selected' : ''}>${s.nom} (VLAN ${s.id_vlan})</option>`
+  ).join('');
+
+  document.getElementById('ef-user').innerHTML = _users.map(u =>
+    `<option value="${u.id_utilisateur}" ${u.id_utilisateur === c.id_utilisateur ? 'selected' : ''}>${u.prenom} ${u.nom}</option>`
+  ).join('');
+
+  document.getElementById('ef-date').min   = new Date().toISOString().slice(0, 10);
+  document.getElementById('ef-date').value = c.date_config;
+  document.getElementById('ef-debut').value = c.heure_debut.slice(0, 5);
+  document.getElementById('ef-fin').value   = c.heure_fin.slice(0, 5);
+
+  const currentUrlIds = new Set(c.urls.map(u => u.id_url));
+  document.getElementById('edit-url-checkboxes').innerHTML = _urls.map(u => `
+    <label class="url-check-label">
+      <input type="checkbox" value="${u.id_url}" ${currentUrlIds.has(u.id_url) ? 'checked' : ''}>
+      ${u.lien}
+    </label>`).join('');
+
+  document.getElementById('modal-edit').classList.add('open');
+}
+
+document.getElementById('edit-cancel').addEventListener('click', () =>
+  document.getElementById('modal-edit').classList.remove('open'));
+
+document.getElementById('edit-submit').addEventListener('click', async () => {
+  const url_ids = [...document.querySelectorAll('#edit-url-checkboxes input:checked')]
+                    .map(el => +el.value);
+
+  if (!url_ids.length) {
+    toast('Sélectionnez au moins une URL', 'error'); return;
+  }
+
+  const dateVal  = document.getElementById('ef-date').value;
+  const todayISO = new Date().toISOString().slice(0, 10);
+  if (!dateVal || dateVal < todayISO) {
+    toast('La date ne peut pas être dans le passé', 'error'); return;
+  }
+
+  const finVal = document.getElementById('ef-fin').value;
+  if (dateVal === todayISO && finVal <= new Date().toTimeString().slice(0, 5)) {
+    toast("L'heure de fin est déjà passée pour aujourd'hui", 'error'); return;
+  }
+
+  const body = {
+    id_salle:       +document.getElementById('ef-salle').value,
+    id_utilisateur: +document.getElementById('ef-user').value,
+    date_config:    dateVal,
+    heure_debut:    document.getElementById('ef-debut').value,
+    heure_fin:      finVal,
+    url_ids
+  };
+  try {
+    await API.put(`/api/configs/${_editConfigId}`, body);
+    toast('Configuration mise à jour', 'ok');
+    document.getElementById('modal-edit').classList.remove('open');
     loadPageData();
   } catch(e) {
     toast(e.data?.error || e.message, 'error');

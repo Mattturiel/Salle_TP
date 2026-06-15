@@ -139,10 +139,6 @@
       <select id="f-salle"></select>
     </div>
     <div class="form-row">
-      <label>Enseignant</label>
-      <select id="f-user"></select>
-    </div>
-    <div class="form-row">
       <label>Date d'activation</label>
       <input type="date" id="f-date">
     </div>
@@ -270,11 +266,6 @@ async function openModal() {
     `<option value="${s.id_salle}">${s.nom} (VLAN ${s.id_vlan})</option>`
   ).join('');
 
-  /* pré-remplir enseignant select */
-  document.getElementById('f-user').innerHTML = _users.map(u =>
-    `<option value="${u.id_utilisateur}">${u.prenom} ${u.nom}</option>`
-  ).join('');
-
   /* checkboxes URLs */
   const box = document.getElementById('url-checkboxes');
   box.innerHTML = _urls.map(u => `
@@ -321,11 +312,10 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
   }
 
   const body = {
-    id_salle:       +document.getElementById('f-salle').value,
-    id_utilisateur: +document.getElementById('f-user').value,
-    date_config:    dateVal,
-    heure_debut:    document.getElementById('f-debut').value,
-    heure_fin:      finVal,
+    id_salle:    +document.getElementById('f-salle').value,
+    date_config: dateVal,
+    heure_debut: document.getElementById('f-debut').value,
+    heure_fin:   finVal,
     url_ids
   };
   try {

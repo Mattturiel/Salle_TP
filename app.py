@@ -349,10 +349,12 @@ def delete_user(id_utilisateur):
 @app.post("/api/configs")
 def create_config():
     data = request.get_json(force=True)
-    required = ["id_salle", "id_utilisateur", "date_config", "heure_debut", "heure_fin"]
+    required = ["id_salle", "date_config", "heure_debut", "heure_fin"]
     missing  = [f for f in required if f not in data]
     if missing:
         return jsonify({"error": f"champs manquants: {missing}"}), 400
+
+    id_utilisateur = _current_uid()
 
     url_ids = data.get("url_ids", [])
     if not url_ids:
@@ -379,7 +381,7 @@ def create_config():
         """INSERT INTO configuration
                (id_salle, id_utilisateur, date_config, heure_debut, heure_fin, statut)
            VALUES (%s, %s, %s, %s, %s, 'pending')""",
-        (data["id_salle"], data["id_utilisateur"],
+        (data["id_salle"], id_utilisateur,
          data["date_config"], h_debut, h_fin)
     )
     for uid in url_ids:

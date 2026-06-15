@@ -25,6 +25,11 @@ Routes :
     POST /api/auth/login
     GET  /api/salles
     GET  /api/urls
+    GET  /api/users
+    POST /api/users
+    GET  /api/users/<id>
+    PUT  /api/users/<id>
+    DELETE /api/users/<id>
     POST /api/configs
     GET  /api/configs              ?statut=pending|active|failed
     GET  /api/configs/active       (consommé par API FW)
@@ -192,9 +197,91 @@ def list_salles():
 @app.get("/api/urls")
 def list_urls():
     return jsonify(query("SELECT id_url, lien, description FROM url ORDER BY id_url"))
+
+
+# ---------------------------------------------------------------------------
+# Users
+# ---------------------------------------------------------------------------
+
+USER_FIELDS = "id_utilisateur, nom, prenom, email, droit"
+
 @app.get("/api/users")
 def list_users():
-    return jsonify(query("SELECT * FROM utilisateur ORDER BY id_utilisateur"))
+    return jsonify(query(f"SELECT {USER_FIELDS} FROM utilisateur ORDER BY id_utilisateur"))
+
+@app.get("/api/users/<int:id_utilisateur>")
+def get_user(id_utilisateur):
+    row = query(f"SELECT {USER_FIELDS} FROM utilisateur WHERE id_utilisateur = %s",
+                (id_utilisateur,), one=True)
+    if not row:
+        abort(404)
+    return jsonify(row)
+
+@app.post("/api/users")
+def create_user():
+    data = request.get_json(force=True)
+    required = ["nom", "prenom", "email", "mot_de_passe", "droit"]
+    missing  = [f for f in required if not data.get(f)]
+    if missing:
+        return jsonify({"error": f"champs manquants: {missing}"}), 400
+    if data["droit"] not in (1, 2):
+        return jsonify({"error": "droit doit être 1 (enseignant) ou 2 (administrateur)"}), 400
+    if query("SELECT id_utilisateur FROM utilisateur WHERE email = %s",
+             (data["email"],), one=True):
+        return jsonify({"error": "email déjà utilisé"}), 409
+
+    pwd_hash = bcrypt.generate_password_hash(data["mot_de_passe"]).decode()
+    new_id = execute(
+        "INSERT INTO utilisateur (nom, prenom, email, mot_de_passe, droit) VALUES (%s,%s,%s,%s,%s)",
+        (data["nom"], data["prenom"], data["email"], pwd_hash, data["droit"])
+    )
+    row = query(f"SELECT {USER_FIELDS} FROM utilisateur WHERE id_utilisateur = %s",
+                (new_id,), one=True)
+    return jsonify({"message": "utilisateur créé", "utilisateur": row}), 201
+
+@app.put("/api/users/<int:id_utilisateur>")
+def update_user(id_utilisateur):
+    if not query("SELECT id_utilisateur FROM utilisateur WHERE id_utilisateur = %s",
+                 (id_utilisateur,), one=True):
+        abort(404)
+    data = request.get_json(force=True)
+
+    if "email" in data:
+        conflict = query("SELECT id_utilisateur FROM utilisateur WHERE email = %s",
+                         (data["email"],), one=True)
+        if conflict and conflict["id_utilisateur"] != id_utilisateur:
+            return jsonify({"error": "email déjà utilisé"}), 409
+    if "droit" in data and data["droit"] not in (1, 2):
+        return jsonify({"error": "droit doit être 1 (enseignant) ou 2 (administrateur)"}), 400
+
+    fields, params = [], []
+    for col in ("nom", "prenom", "email", "droit"):
+        if col in data:
+            fields.append(f"{col} = %s")
+            params.append(data[col])
+    if "mot_de_passe" in data and data["mot_de_passe"]:
+        fields.append("mot_de_passe = %s")
+        params.append(bcrypt.generate_password_hash(data["mot_de_passe"]).decode())
+
+    if not fields:
+        return jsonify({"error": "aucun champ à modifier"}), 400
+
+    params.append(id_utilisateur)
+    execute(f"UPDATE utilisateur SET {', '.join(fields)} WHERE id_utilisateur = %s", params)
+    row = query(f"SELECT {USER_FIELDS} FROM utilisateur WHERE id_utilisateur = %s",
+                (id_utilisateur,), one=True)
+    return jsonify({"message": "utilisateur mis à jour", "utilisateur": row}), 200
+
+@app.delete("/api/users/<int:id_utilisateur>")
+def delete_user(id_utilisateur):
+    if not query("SELECT id_utilisateur FROM utilisateur WHERE id_utilisateur = %s",
+                 (id_utilisateur,), one=True):
+        abort(404)
+    if query("SELECT id_config FROM configuration WHERE id_utilisateur = %s LIMIT 1",
+             (id_utilisateur,), one=True):
+        return jsonify({"error": "impossible de supprimer : cet utilisateur a des configurations"}), 409
+    execute("DELETE FROM utilisateur WHERE id_utilisateur = %s", (id_utilisateur,))
+    return jsonify({"message": f"utilisateur {id_utilisateur} supprimé"}), 200
 
 # ---------------------------------------------------------------------------
 # Configurations

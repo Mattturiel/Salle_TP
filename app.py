@@ -14,15 +14,20 @@ Variables d'environnement :
 Routes :
   
   IHM =>
-  
+
+    GET  /login             => page de connexion
+    GET  /logout            => déconnexion
     GET  /              => redirect /ui/
     GET  /ui/           => tableau de bord
     GET  /ui/configs    => gestion des configurations
     GET  /ui/salles     => liste salles / VLAN
-  
+    GET  /ui/users      => gestion des utilisateurs
+
   API REST =>
-  
+
     POST /api/auth/login
+    POST /api/auth/logout
+    GET  /api/auth/me
     GET  /api/salles
     GET  /api/urls
     GET  /api/users
@@ -44,22 +49,54 @@ import datetime
 import pymysql
 import pymysql.cursors
 import requests
-from flask import Flask, jsonify, request, g, abort
+from flask import Flask, jsonify, request, g, abort, session, redirect, url_for, render_template
 from flask_bcrypt import Bcrypt
 
-app    = Flask(__name__)
+app = Flask(__name__)
 app.json.ensure_ascii = False
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me-in-production")
+
+bcrypt = Bcrypt(app)
+
 # Import du Blueprint IHM (ui_blueprint.py)
 from ui_blueprint import ui_bp
-# Register prefix /ui, séparé de /api/*
 app.register_blueprint(ui_bp)
-# Redirection / vers le dashboard
-from flask import redirect, url_for
+
+
+# ---------------------------------------------------------------------------
+# Auth enforcement
+# ---------------------------------------------------------------------------
+
+_PUBLIC_PATHS = {"/login", "/api/auth/login"}
+
+@app.before_request
+def require_login():
+    if request.path in _PUBLIC_PATHS or request.path.startswith("/static"):
+        return
+    if "user" not in session:
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "non authentifié"}), 401
+        return redirect(url_for("login_page"))
+
+@app.context_processor
+def inject_current_user():
+    return {"current_user": session.get("user")}
+
 @app.get("/")
 def root():
     return redirect(url_for("ui.index"))
-  
-bcrypt = Bcrypt(app)
+
+@app.get("/login")
+def login_page():
+    if "user" in session:
+        return redirect(url_for("ui.index"))
+    return render_template("login.html")
+
+@app.get("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login_page"))
+
 
 DB_CONF = {
     "host":     os.getenv("DB_HOST",     "localhost"),
@@ -178,13 +215,24 @@ def login():
     if not user or not bcrypt.check_password_hash(user["mot_de_passe"],
                                                    data.get("mot_de_passe", "")):
         return jsonify({"error": "identifiants invalides"}), 401
-    return jsonify({"message": "ok", "utilisateur": {
+    session.permanent = False
+    session["user"] = {
         "id_utilisateur": user["id_utilisateur"],
         "nom":    user["nom"],
         "prenom": user["prenom"],
         "email":  user["email"],
         "droit":  user["droit"],
-    }}), 200
+    }
+    return jsonify({"message": "ok", "utilisateur": session["user"]}), 200
+
+@app.post("/api/auth/logout")
+def api_logout():
+    session.clear()
+    return jsonify({"message": "déconnecté"}), 200
+
+@app.get("/api/auth/me")
+def me():
+    return jsonify({"utilisateur": session["user"]}), 200
 
 
 # ---------------------------------------------------------------------------

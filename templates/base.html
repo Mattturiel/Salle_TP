@@ -367,6 +367,19 @@
       <span id="status-dot"></span>
       <span id="status-text">—</span>
     </div>
+    {% if current_user %}
+    <div style="display:flex;align-items:center;gap:10px;margin-left:16px;padding-left:16px;border-left:1px solid var(--border)">
+      <span style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+        {{ current_user.prenom }} {{ current_user.nom }}
+        {% if current_user.droit == 2 %}
+        <span style="color:var(--accent);margin-left:4px">· admin</span>
+        {% endif %}
+      </span>
+      <a href="/logout" style="font-family:var(--mono);font-size:11px;color:var(--text-dim);text-decoration:none;padding:3px 8px;border:1px solid var(--border);border-radius:4px;transition:color .15s,border-color .15s" onmouseover="this.style.color='var(--danger)';this.style.borderColor='var(--danger)'" onmouseout="this.style.color='var(--text-dim)';this.style.borderColor='var(--border)'">
+        Déconnexion
+      </a>
+    </div>
+    {% endif %}
   </header>
 
   <!-- Sidebar -->
@@ -432,8 +445,10 @@
 <script>
 /* ─── utilitaires globaux ─── */
 const API = {
+  _check(r) { if (r.status === 401) { window.location.href = '/login'; throw new Error('session expirée'); } },
   async get(path) {
     const r = await fetch(path);
+    this._check(r);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   },
@@ -443,6 +458,7 @@ const API = {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(body)
     });
+    this._check(r);
     const data = await r.json();
     if (!r.ok) throw Object.assign(new Error(data.error || 'Erreur'), {data});
     return data;
@@ -453,12 +469,14 @@ const API = {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(body)
     });
+    this._check(r);
     const data = await r.json();
     if (!r.ok) throw Object.assign(new Error(data.error || 'Erreur'), {data});
     return data;
   },
   async del(path) {
     const r = await fetch(path, { method: 'DELETE' });
+    this._check(r);
     if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
     return r.json();
   }
